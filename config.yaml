@@ -1,0 +1,40 @@
+name: refactored-upload-test
+code: refactored-upload-test
+version: 0.1.0
+readme: README.md
+description: This is refactored-upload-test plugin
+category: upload
+package_manager: pip
+actions:
+  upload:
+    entrypoint: plugin.upload.Uploader
+    options: null
+    supported_data_type: image
+    excel_config:
+      max_file_size_mb: 10
+      max_rows: 100000
+      max_columns: 50
+    ui_schema:
+    - $formkit: radio
+      name: file_format
+      label: File Format
+      help: Select the file format for upload processing
+      required: false
+      value: original
+      options:
+      - label: Keep Original
+        value: original
+      - label: Convert to JPEG
+        value: jpeg
+      - label: Convert to PNG
+        value: png
+    - $formkit: checkbox
+      name: include_metadata
+      label: Include Metadata
+      help: Include file metadata during upload
+      value: true
+    - $formkit: text
+      name: custom_tag
+      label: Custom Tag
+      help: Add a custom tag to uploaded files
+      placeholder: Enter custom tag
