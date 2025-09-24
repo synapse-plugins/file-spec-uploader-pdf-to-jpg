@@ -78,12 +78,7 @@ class Uploader(BaseUploader):
         
         for file_group in organized_files:
             files_dict = file_group.get('files', {})
-            converted_group = {'files': {}}
-            
-            # Copy non-file attributes
-            for key, value in file_group.items():
-                if key != 'files':
-                    converted_group[key] = value
+            pdf_converted = False
             
             for spec_name, file_path in files_dict.items():
                 if isinstance(file_path, list):
@@ -96,32 +91,48 @@ class Uploader(BaseUploader):
                         
                         # Create temporary directory for converted images
                         temp_dir = Path(tempfile.mkdtemp())
-                        converted_image_paths = []
                         
+                        # Create separate file groups for each page
                         for i, image in enumerate(images):
                             image_path = temp_dir / f'{file_path.stem}_page_{i+1}.png'
                             image.save(str(image_path), 'PNG')
-                            converted_image_paths.append(image_path)
+                            
+                            # Create new file group for this page
+                            page_group = {'files': {}}
+                            # Copy all non-file attributes from original group
+                            for key, value in file_group.items():
+                                if key != 'files':
+                                    page_group[key] = value
+                            
+                            # Add the converted image
+                            page_group['files'][spec_name] = image_path
+                            converted_files.append(page_group)
                             
                             self.run.log_message(f'Converted PDF page {i+1} to: {image_path}')
                         
-                        # Store converted images (use list if multiple pages, single path if one page)
-                        if len(converted_image_paths) == 1:
-                            converted_group['files'][spec_name] = converted_image_paths[0]
-                        else:
-                            converted_group['files'][spec_name] = converted_image_paths
-                            
-                        self.run.log_message(f'Successfully converted PDF {file_path} to {len(converted_image_paths)} image(s)')
+                        msg = f'Successfully converted PDF {file_path} to {len(images)} separate file groups'
+                        self.run.log_message(msg)
+                        pdf_converted = True
+                        break  # Exit the inner loop since we've processed the PDF
                         
                     except Exception as e:
                         self.run.log_message(f'Error converting PDF {file_path}: {str(e)}')
                         # Keep original file if conversion fails
-                        converted_group['files'][spec_name] = file_path
-                else:
-                    # Keep non-PDF files as-is
-                    converted_group['files'][spec_name] = file_path
+                        break
             
-            converted_files.append(converted_group)
+            # Only add the original group if no PDF was converted
+            if not pdf_converted:
+                converted_group = {'files': {}}
+                # Copy non-file attributes
+                for key, value in file_group.items():
+                    if key != 'files':
+                        converted_group[key] = value
+                
+                # Copy all files as-is
+                for spec_name, file_path in files_dict.items():
+                    converted_group['files'][spec_name] = file_path
+                
+                converted_files.append(converted_group)
         
         return converted_files
 

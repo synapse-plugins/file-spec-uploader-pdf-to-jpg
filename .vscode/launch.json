@@ -26,7 +26,7 @@
         "--debug",
         "run",
         "upload",
-        "{\"storage\": 11, \"data_collection\": 1208, \"path\": \"hyeonsoo.kim/wall_crack_image/\", \"excel_metadata_path\": \"meta_dddd.xlsx\", \"is_recursive\": true, \"use_async_upload\": true, \"name\": \"Test Upload Plugin 1\", \"description\": \"Test Upload Plugin 1 Description\"}",
+        "{\"storage\": 11, \"data_collection\": 14, \"path\": \"hyeonsoo.kim/pdf2image-test/\", \"is_recursive\": true, \"use_async_upload\": true, \"name\": \"Test Upload Plugin 1\", \"description\": \"Test Upload Plugin 1 Description\"}",
         "--direct"
       ],
       "autoStartBrowser": false,
