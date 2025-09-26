@@ -1,2 +1,2 @@
-synapse-sdk[all]
+synapse-sdk[all]>=2025.9.3
 pdf2image
