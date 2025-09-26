@@ -1,3 +1,4 @@
+import copy
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
@@ -104,16 +105,11 @@ class Uploader(BaseUploader):
                             # Deep copy all non-file attributes from original group
                             for key, value in file_group.items():
                                 if key != 'files':
-                                    if isinstance(value, dict):
-                                        page_group[key] = value.copy()
-                                    else:
-                                        page_group[key] = value
+                                    page_group[key] = copy.deepcopy(value)
 
                             # Add metadata for PDF conversion
                             if 'meta' not in page_group:
                                 page_group['meta'] = {}
-                            else:
-                                page_group['meta'] = page_group['meta'].copy()
                             
                             page_group['meta']['total_pages'] = total_pages
                             page_group['meta']['page_number'] = page_num
