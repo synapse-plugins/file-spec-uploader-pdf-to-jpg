@@ -9,6 +9,10 @@ class BaseUploader:
     that are shared across all upload plugins. Plugin developers should inherit
     from this class and implement the required methods for their specific logic.
 
+    Important: Plugin extensions work with already-organized files from the main upload workflow.
+    Whether single-path or multi-path mode is used is transparent to plugin developers - you
+    simply process the organized_files list provided to you.
+
     Core Methods:
         handle_upload_files(): Main upload method - handles the complete upload workflow
         organize_files(): Handle file organization logic (can be overridden)
@@ -32,6 +36,17 @@ class BaseUploader:
         Logging via self.run.log_message() and other run methods
         File path utilities via self.path
         Specification access via self.file_specification
+
+    Customization:
+        To restrict file extensions, modify get_file_extensions_config() in this file:
+
+        Example - Allow only MP4 videos:
+            def get_file_extensions_config(self):
+                return {
+                    'video': ['.mp4'],  # Only MP4 allowed
+                    'image': ['.jpg', '.png'],
+                    # ... other types
+                }
     """
 
     def __init__(
@@ -47,8 +62,13 @@ class BaseUploader:
         Args:
             run: Plugin run object with logging capabilities.
             path: Path object pointing to the upload target directory.
+                  - In single-path mode: Base directory path (Path object)
+                  - In multi-path mode: None (not needed - use self.assets_config instead)
+                  Files have already been discovered from their respective asset paths.
             file_specification: List of specifications that define the structure of files to be uploaded.
             organized_files: List of pre-organized files based on the default logic.
+                            Plugin extensions work with these already-organized files regardless of
+                            whether single-path or multi-path mode was used.
             extra_params: Additional parameters for customization.
         """
         self.run = run
@@ -56,6 +76,37 @@ class BaseUploader:
         self.file_specification = file_specification or []
         self.organized_files = organized_files or []
         self.extra_params = extra_params or {}
+
+    def get_file_extensions_config(self) -> Dict[str, List[str]]:
+        """Get allowed file extensions configuration.
+
+        Modify this dictionary to restrict file extensions per file type.
+        Extensions are case-insensitive and must include the dot prefix.
+
+        Example:
+            To allow only MP4 videos::
+
+                def get_file_extensions_config(self):
+                    return {
+                        'video': ['.mp4'],
+                        'image': ['.jpg', '.png'],
+                    }
+
+        Returns:
+            Dict[str, List[str]]: Mapping of file types to allowed extensions.
+                Each key is a file type (e.g., 'video', 'image') and each value
+                is a list of allowed extensions (e.g., ['.mp4', '.avi']).
+        """
+        # Configure allowed extensions here
+        # Extensions should include the dot (e.g., '.mp4', not 'mp4')
+        return {
+            'video': ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv'],
+            'image': ['.jpg', '.jpeg', '.png'],
+            'pcd': ['.pcd'],
+            'text': ['.txt', '.html'],
+            'audio': ['.mp3', '.wav'],
+            'data': ['.xml', '.bin', '.json', '.fbx'],
+        }
 
     def _log_validation_warning(self, spec_name: str, invalid_extensions: List[str], expected_extensions: List[str]):
         """Log validation warning for invalid file extensions."""
@@ -80,36 +131,6 @@ class BaseUploader:
         """
         return files_to_validate  # Default: return all files
 
-    def get_file_extensions_config(self) -> Dict[str, List[str]]:
-        """Get allowed file extensions configuration.
-
-        Returns:
-            Dict mapping file categories to allowed extensions
-        """
-        return {
-            'pcd': ['.pcd'],
-            'text': ['.txt', '.html'],
-            'audio': ['.wav', '.mp3'],
-            'data': ['.bin', '.json', '.fbx'],
-            'image': ['.jpg', '.jpeg', '.png'],
-            'video': ['.mp4'],
-        }
-
-    def get_conversion_warnings_config(self) -> Dict[str, str]:
-        """Get file conversion warnings configuration.
-
-        Returns:
-            Dict mapping problematic extensions to recommended formats
-        """
-        return {
-            '.tif': ' .jpg, .png',
-            '.tiff': ' .jpg, .png',
-            '.avi': ' .mp4',
-            '.mov': ' .mp4',
-            '.mkv': ' .mp4',
-            '.wmv': ' .mp4',
-        }
-
     # Abstract methods that should be implemented by subclasses
     def process_files(self, organized_files: List) -> List:
         """Process files. Should be implemented by subclasses."""
@@ -128,7 +149,18 @@ class BaseUploader:
         return files
 
     def validate_files(self, files: List) -> List:
-        """Validate files. Can be overridden by subclasses."""
+        """Validate files against allowed extensions and custom rules.
+
+        This method first validates file types against get_file_extensions_config(),
+        then applies custom filtering via _filter_valid_files().
+
+        Override this method for complete custom validation, or override
+        _filter_valid_files() to add additional filtering after extension validation.
+        """
+        # First, validate file extensions
+        files = self.validate_file_types(files)
+
+        # Then apply custom filtering
         return self._filter_valid_files(files)
 
     def setup_directories(self) -> None:
@@ -136,30 +168,33 @@ class BaseUploader:
         pass
 
     def validate_file_types(self, organized_files: List) -> List:
-        """Validate file types against specifications with comprehensive filtering logic.
+        """Validate file types against allowed extensions configuration.
 
-        This method implements the complete validation logic from legacy code,
-        filtering out files that don't match their expected specifications.
+        Filters files based on their extensions according to get_file_extensions_config().
+        Files with extensions not matching their file type will be filtered out and logged.
 
         Args:
-            organized_files: List of organized file dictionaries
+            organized_files (List[Dict]): List of organized file dictionaries.
+                Each dict contains a 'files' key mapping spec names to file paths.
 
         Returns:
-            List: Filtered list containing only valid files that match specifications
+            List[Dict]: Filtered list containing only files with valid extensions.
+                Files with disallowed extensions are removed and logged as WARNING.
+
+        Note:
+            Extension matching is case-insensitive (.mp4 == .MP4).
+            Filtered files are logged using LogCode.FILES_FILTERED_BY_EXTENSION.
         """
         if not organized_files or not self.file_specification:
             return organized_files
 
         valid_files = []
-        allowed_extensions = self.get_file_extensions_config()
-        conversion_warnings = self.get_conversion_warnings_config()
-        warning_extensions = list(conversion_warnings.keys())
-        all_violation_case = {}
+        allowed_extensions_config = self.get_file_extensions_config()
+        filtered_by_type = {}  # Track filtered files per type
 
         for file_group in organized_files:
             files_dict = file_group.get('files', {})
-            invalid_case = {}
-            warning_case = {}
+            is_valid_group = True
 
             for spec_name, file_path in files_dict.items():
                 # Find the specification for this file type
@@ -169,71 +204,61 @@ class BaseUploader:
 
                 # Handle file path lists
                 if isinstance(file_path, list):
-                    file_path = file_path[0] if len(file_path) == 1 else file_path
+                    file_path = file_path[0] if file_path else None
 
-                # Extract file information
-                file_category = spec_name.split('_')[0]
+                if file_path is None:
+                    continue
+
+                # Get file type and extension
                 file_type = file_spec['file_type']
                 file_extension = file_path.suffix.lower()
 
-                # Check if file needs conversion warning (these files will be excluded)
-                if file_extension in warning_extensions:
-                    case = invalid_case.get(spec_name, {})
-                    case['warning'] = case.get('warning', []) + [file_extension]
-                    warning_case[spec_name] = case
-                    break
+                # Check if this file type has allowed extensions
+                if file_type in allowed_extensions_config:
+                    allowed_exts = [ext.lower() for ext in allowed_extensions_config[file_type]]
 
-                # Validate against file category (e.g., 'image', 'data', etc.)
-                if file_category in allowed_extensions.keys():
-                    if file_extension in allowed_extensions[file_category]:
-                        continue  # Valid file
-                    else:
-                        case = invalid_case.get(spec_name, {})
-                        case['invalid'] = case.get('invalid', []) + [file_extension]
-                        case['expected'] = allowed_extensions[file_category]
-                        invalid_case[spec_name] = case
+                    if file_extension not in allowed_exts:
+                        # Track filtered extension
+                        if file_type not in filtered_by_type:
+                            filtered_by_type[file_type] = {'extensions': set(), 'count': 0}
+                        filtered_by_type[file_type]['extensions'].add(
+                            file_extension if file_extension else '(no extension)'
+                        )
+                        filtered_by_type[file_type]['count'] += 1
+                        is_valid_group = False
                         break
 
-                # Validate against file type from specification
-                if file_type in allowed_extensions.keys():
-                    if file_extension in allowed_extensions[file_type]:
-                        continue  # Valid file
-                    else:
-                        case = invalid_case.get(spec_name, {})
-                        case['invalid'] = case.get('invalid', []) + [file_extension]
-                        case['expected'] = allowed_extensions[file_type]
-                        invalid_case[spec_name] = case
-                        break
+            # Add file group if all files are valid
+            if is_valid_group:
+                valid_files.append(file_group)
 
-            # If violations found, exclude this file group
-            if invalid_case or warning_case:
-                all_violation_case[spec_name] = {
-                    'invalid': invalid_case.get(spec_name, {}),
-                    'warning': warning_case.get(spec_name, {}),
-                }
-                continue  # Skip this file group
-
-            # No violations - add to valid files
-            valid_files.append(file_group)
-
-        # Log all violations found during validation
-        self._log_all_violations(all_violation_case, conversion_warnings)
+        # Log filtered files by type
+        self._log_filtered_files(filtered_by_type, allowed_extensions_config)
 
         return valid_files
 
-    def _log_all_violations(self, all_violation_case: Dict, conversion_warnings: Dict):
-        """Log all validation violations found during file validation."""
-        for spec_name, violation_info in all_violation_case.items():
-            if violation_info['invalid']:
-                self.run.log_message(
-                    f"Validation warning in '{spec_name}': File extensions {violation_info['invalid']['invalid']} do not match expected extensions {violation_info['invalid']['expected']}. These files will be excluded from upload."
+    def _log_filtered_files(self, filtered_by_type: Dict, allowed_config: Dict):
+        """Log filtered files by type with detailed information.
+
+        Args:
+            filtered_by_type (Dict[str, Dict]): Filtered file information per type.
+                Each entry contains 'extensions' (set) and 'count' (int).
+            allowed_config (Dict[str, List[str]]): The allowed extensions configuration
+                mapping file types to allowed extension lists.
+        """
+        from synapse_sdk.plugins.categories.upload.actions.upload.enums import LogCode
+
+        for file_type, info in filtered_by_type.items():
+            if info['count'] > 0:
+                extensions_str = ', '.join(sorted(info['extensions']))
+                allowed_str = ', '.join(allowed_config.get(file_type, []))
+                self.run.log_message_with_code(
+                    LogCode.FILES_FILTERED_BY_EXTENSION,
+                    info['count'],
+                    file_type,
+                    extensions_str,
+                    allowed_str,
                 )
-            if violation_info['warning']:
-                for warning in violation_info['warning']['warning']:
-                    if warning in conversion_warnings:
-                        self.run.log_message(
-                            f"Conversion warning in '{spec_name}': File extension '{warning}' may require conversion to [{conversion_warnings[warning]}]."
-                        )
 
     def handle_upload_files(self) -> List:
         """Main upload method that handles the complete upload workflow.

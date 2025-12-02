@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Plugin Direct Using Single Path",
+      "type": "debugpy",
+      "request": "launch",
+      "args": [
+        "plugin",
+        "--debug",
+        "run",
+        "upload",
+        "${workspaceFolder}/.vscode/params.json", // 단일 경로 매개변수를 사용하는 JSON 파일 경로
+        "--direct"
+      ],
+      "autoStartBrowser": false,
+      "program": "${workspaceFolder}/virenv/bin/synapse", // "virenv" 는 가상환경 이름입니다. 필요에 따라 변경하세요.
+      "python": "${workspaceFolder}/virenv/bin/python"
+    }
+  ]
+}

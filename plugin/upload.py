@@ -110,7 +110,7 @@ class Uploader(BaseUploader):
                             # Add metadata for PDF conversion
                             if 'meta' not in page_group:
                                 page_group['meta'] = {}
-                            
+
                             page_group['meta']['total_pages'] = total_pages
                             page_group['meta']['page_number'] = page_num
                             page_group['meta']['original_filename'] = file_path.name

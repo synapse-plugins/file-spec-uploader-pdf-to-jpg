@@ -1,0 +1,17 @@
+{
+  "name": "Tiff to jpg upload",
+  "path": "",
+  "assets": {
+    "image_1": {
+      "path": "/new_synapse_test/every_data_type/image/tif",
+      "is_recursive": false
+    }
+  },
+  "project": null,
+  "storage": 11,
+  "extra_params": {},
+  "is_recursive": false,
+  "data_collection": 14,
+  "use_single_path": false,
+  "excel_metadata_path": "/330_assignments.xlsx"
+}
