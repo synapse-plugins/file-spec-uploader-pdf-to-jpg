@@ -1,6 +1,7 @@
 name: pdf-to-image-uploader-v2
 code: pdf-to-image-uploader-v2
 version: 0.1.0
+debug: true
 category: upload
 description: PDF 파일의 각 페이지를 이미지로 추출하여 업로드하는 플러그인
 actions:
