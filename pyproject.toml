@@ -1,0 +1,15 @@
+[project]
+name = "pdf-to-image-uploader"
+version = "0.1.0"
+description = "pdf-to-image-uploader plugin"
+requires-python = ">=3.10"
+dependencies = [
+    "synapse-sdk",
+    "PyMuPDF",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
