@@ -27,6 +27,12 @@ class UploadAction(DefaultUploadAction[UploadParams]):
     action_name = 'upload'
     params_model = UploadParams
 
+    def get_allowed_extensions(self) -> dict[str, list[str]] | None:
+        """Allow standard image formats plus PDF."""
+        return {
+            'image': ['.jpg', '.jpeg', '.png', '.pdf'],
+        }
+
     def setup_steps(self, registry: StepRegistry[UploadContext]) -> None:
         super().setup_steps(registry)
         registry.insert_after('organize_files', ExtractPdfImagesStep())
