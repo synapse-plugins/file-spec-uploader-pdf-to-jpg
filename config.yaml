@@ -1,8 +1,10 @@
 name: PDF 전처리 임포트 플러그인
 code: pdf-to-image-uploader
-version: 2.0.0
+version: 2.1.0
 category: upload
 description: PDF 파일의 각 페이지를 이미지로 추출하여 업로드하는 플러그인
+supported_data_types:
+  - image
 actions:
   upload:
     entrypoint: plugin.upload.UploadAction
