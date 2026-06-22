@@ -10,7 +10,10 @@ from typing import Any
 import pymupdf
 
 from synapse_sdk.plugins.actions.upload.context import UploadContext
+from synapse_sdk.plugins.actions.upload.steps.validate import ValidateFilesStep
 from synapse_sdk.plugins.steps import BaseStep, StepResult
+
+from plugin.log_messages import PdfLogMessageCode
 
 
 class ExtractPdfImagesStep(BaseStep[UploadContext]):
@@ -191,6 +194,7 @@ class ExtractPdfImagesStep(BaseStep[UploadContext]):
                 'pdf_locked',
                 {'file': pdf_path.name, 'reason': 'password protected'},
             )
+            context.params.setdefault('filtered_locked_pdfs', []).append(pdf_path.name)
             doc.close()
             return [], {}
 
@@ -244,3 +248,28 @@ class ExtractPdfImagesStep(BaseStep[UploadContext]):
             return [], {}
         finally:
             doc.close()
+
+
+class ValidateExtractedFilesStep(ValidateFilesStep):
+    """Validate files and report any locked PDFs filtered out during extraction.
+
+    ExtractPdfImagesStep skips password-protected PDFs and records their names
+    in context.params['filtered_locked_pdfs']. This step surfaces those at
+    validation time so it is clear in the log that the files were filtered out,
+    then delegates to the standard validation behavior.
+    """
+
+    def execute(self, context: UploadContext) -> StepResult:
+        self._log_filtered_locked_pdfs(context)
+        return super().execute(context)
+
+    def _log_filtered_locked_pdfs(self, context: UploadContext) -> None:
+        """Emit a clear log for each locked PDF filtered out before validation."""
+        filtered = context.params.get('filtered_locked_pdfs') or []
+        for file_name in filtered:
+            context.log(
+                'pdf_locked_filtered',
+                {'file': file_name, 'reason': 'locked (password protected) PDF filtered out'},
+            )
+            # Surface the same information to the joblog as an event=message.
+            context.log_message(PdfLogMessageCode.PDF_LOCKED_FILTERED, file=file_name)
