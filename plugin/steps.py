@@ -264,12 +264,21 @@ class ValidateExtractedFilesStep(ValidateFilesStep):
         return super().execute(context)
 
     def _log_filtered_locked_pdfs(self, context: UploadContext) -> None:
-        """Emit a clear log for each locked PDF filtered out before validation."""
+        """Report locked PDFs filtered out before validation.
+
+        Each file is logged individually (per-file reason is available in the
+        log export), and a single aggregate event=message with the total count
+        is sent to the joblog.
+        """
         filtered = context.params.get('filtered_locked_pdfs') or []
+        if not filtered:
+            return
+
         for file_name in filtered:
             context.log(
                 'pdf_locked_filtered',
                 {'file': file_name, 'reason': 'locked (password protected) PDF filtered out'},
             )
-            # Surface the same information to the joblog as an event=message.
-            context.log_message(PdfLogMessageCode.PDF_LOCKED_FILTERED, file=file_name)
+
+        # One summary message for the joblog (details are in the log export).
+        context.log_message(PdfLogMessageCode.PDF_LOCKED_FILTERED, count=len(filtered))

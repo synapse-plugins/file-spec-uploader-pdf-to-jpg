@@ -89,30 +89,35 @@ def test_validation_logs_filtered_locked_pdf() -> None:
 
 
 def test_locked_pdf_message_template_is_korean() -> None:
-    """The joblog message code resolves to Korean text mentioning the file."""
+    """The joblog message code resolves to Korean text mentioning the count."""
     message, level = resolve_log_message(
-        PdfLogMessageCode.PDF_LOCKED_FILTERED, file='locked.pdf'
+        PdfLogMessageCode.PDF_LOCKED_FILTERED, count=3
     )
-    assert 'locked.pdf' in message
+    assert '3' in message
     assert '제외' in message  # Korean: "excluded"
     assert level == 'warning'
 
 
-def test_validation_sends_joblog_message_for_filtered_locked_pdf() -> None:
-    """Validation should emit an event=message (LogMessageCode) for the joblog."""
+def test_validation_sends_single_aggregate_joblog_message() -> None:
+    """Validation sends ONE event=message with the count, plus per-file detail logs."""
     step = ValidateExtractedFilesStep()
     context = RecordingContext()
-    context.params['filtered_locked_pdfs'] = ['locked.pdf']
+    context.params['filtered_locked_pdfs'] = ['a.pdf', 'b.pdf']
 
     step._log_filtered_locked_pdfs(context)
 
+    # One aggregate joblog message carrying the total count.
     sent = [
         kwargs
         for message, _, kwargs in context.messages
         if message is PdfLogMessageCode.PDF_LOCKED_FILTERED
     ]
     assert len(sent) == 1
-    assert sent[0].get('file') == 'locked.pdf'
+    assert sent[0].get('count') == 2
+
+    # Per-file detail is still emitted for the log export.
+    detail = [data for event, data in context.logs if event == 'pdf_locked_filtered']
+    assert [d['file'] for d in detail] == ['a.pdf', 'b.pdf']
 
 
 def test_validation_logging_survives_strict_logger() -> None:

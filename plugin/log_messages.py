@@ -18,7 +18,8 @@ class PdfLogMessageCode(LogMessageCode):
 
 register_log_messages({
     PdfLogMessageCode.PDF_LOCKED_FILTERED: (
-        '잠긴(암호로 보호된) PDF "{file}" 은(는) 처리할 수 없어 업로드에서 제외되었습니다.'
+        '{count}개의 잠긴 PDF 파일이 확인되었습니다. '
+        '해당 파일은 처리할 수 없어 업로드에서 제외되었습니다.'
     ),
 })
 
