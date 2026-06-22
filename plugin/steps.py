@@ -186,6 +186,14 @@ class ExtractPdfImagesStep(BaseStep[UploadContext]):
         except Exception:
             return [], {}
 
+        if doc.needs_pass:
+            context.log(
+                'pdf_locked',
+                {'file': pdf_path.name, 'reason': 'password protected'},
+            )
+            doc.close()
+            return [], {}
+
         try:
             pdf_metadata = self._get_pdf_metadata(doc)
             total_pages = doc.page_count
