@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from plugin.steps import ExtractPdfImagesStep
+from plugin.steps import ExtractPdfImagesStep, ValidateExtractedFilesStep
 from synapse_sdk.plugins.actions.upload import (
     DefaultUploadAction,
     UploadContext,
@@ -36,3 +36,7 @@ class UploadAction(DefaultUploadAction[UploadParams]):
     def setup_steps(self, registry: StepRegistry[UploadContext]) -> None:
         super().setup_steps(registry)
         registry.insert_after('organize_files', ExtractPdfImagesStep())
+        # Replace the default validation with one that reports locked PDFs
+        # filtered out during extraction.
+        registry.unregister('validate_files')
+        registry.insert_after('extract_pdf_images', ValidateExtractedFilesStep())

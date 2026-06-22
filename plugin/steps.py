@@ -10,7 +10,10 @@ from typing import Any
 import pymupdf
 
 from synapse_sdk.plugins.actions.upload.context import UploadContext
+from synapse_sdk.plugins.actions.upload.steps.validate import ValidateFilesStep
 from synapse_sdk.plugins.steps import BaseStep, StepResult
+
+from plugin.log_messages import PdfLogMessageCode
 
 
 class ExtractPdfImagesStep(BaseStep[UploadContext]):
@@ -191,6 +194,7 @@ class ExtractPdfImagesStep(BaseStep[UploadContext]):
                 'pdf_locked',
                 {'file': pdf_path.name, 'reason': 'password protected'},
             )
+            context.params.setdefault('filtered_locked_pdfs', []).append(pdf_path.name)
             doc.close()
             return [], {}
 
@@ -244,3 +248,37 @@ class ExtractPdfImagesStep(BaseStep[UploadContext]):
             return [], {}
         finally:
             doc.close()
+
+
+class ValidateExtractedFilesStep(ValidateFilesStep):
+    """Validate files and report any locked PDFs filtered out during extraction.
+
+    ExtractPdfImagesStep skips password-protected PDFs and records their names
+    in context.params['filtered_locked_pdfs']. This step surfaces those at
+    validation time so it is clear in the log that the files were filtered out,
+    then delegates to the standard validation behavior.
+    """
+
+    def execute(self, context: UploadContext) -> StepResult:
+        self._log_filtered_locked_pdfs(context)
+        return super().execute(context)
+
+    def _log_filtered_locked_pdfs(self, context: UploadContext) -> None:
+        """Report locked PDFs filtered out before validation.
+
+        Each file is logged individually (per-file reason is available in the
+        log export), and a single aggregate event=message with the total count
+        is sent to the joblog.
+        """
+        filtered = context.params.get('filtered_locked_pdfs') or []
+        if not filtered:
+            return
+
+        for file_name in filtered:
+            context.log(
+                'pdf_locked_filtered',
+                {'file': file_name, 'reason': 'locked (password protected) PDF filtered out'},
+            )
+
+        # One summary message for the joblog (details are in the log export).
+        context.log_message(PdfLogMessageCode.PDF_LOCKED_FILTERED, count=len(filtered))
